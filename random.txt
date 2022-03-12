@@ -1,0 +1,40 @@
+--@name Random Lib
+--@author Periapsis
+
+--@server
+
+local Random = {}
+
+function Random.Generator( seed )
+    local generator = {}
+    
+    generator.mult = 16807
+    generator.mod = ( 2 ^ 31 ) - 1
+    generator.seed = seed or timer.systime()
+    generator._seed = generator.seed
+    
+    function generator:random( min, max, round )
+        min = min or 0
+        max = max or 1
+    
+        self._seed = ( self._seed * self.mult + 1 ) % self.mod
+        
+        local val = min + ( max - min ) * ( self._seed / self.mod )
+        if round then val = math.round( val ) end
+        
+        return val
+    end
+    
+    function generator:setSeed( seed )
+        self.seed = seed
+        self._seed = seed
+        
+        self:random()
+    end
+    
+    generator:random()
+    
+    return generator
+end
+
+return Random

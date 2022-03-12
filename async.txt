@@ -1,0 +1,62 @@
+ --------------------------------------------------
+-- Task Type
+
+local Task = {}
+Task.__index = Task
+
+function Task:__index( key )
+    if self == Task then return end
+end
+
+function Task:__call( async )
+    local task = {}
+    
+    task.async = async
+    task.thread = coroutine.create( async.wrapper )
+    task.name = "Thread_" .. tostring( task.thread ):sub( 10 )
+    
+    local function thread()
+        if coroutine.status( task.thread ) == "dead" then return end
+        
+        coroutine.resume( task.thread )
+    end
+    
+    hook.add( "Tick", task.name, thread )
+    
+    return setmetatable( task, self )
+end
+
+setmetatable( Task, Task )
+
+function await( async )
+    return Task( async )
+end
+
+--------------------------------------------------
+-- Async type
+
+local Async = {}
+Async.__index = Async
+
+function Async:__index( key )
+    if self == Async then return end
+end
+
+function Async:__call( func )
+    local async = {}
+    
+    local function wrapper( ... )
+        return wrapper( ... )
+    end
+    
+    async.original = func
+    async.wrapper = wrapper
+    
+    return setmetatable( async, self )
+end
+
+setmetatable( Async, Async )
+
+function async( func )
+    return Async( func )
+end

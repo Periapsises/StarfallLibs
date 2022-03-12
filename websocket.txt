@@ -1,0 +1,172 @@
+--@name websocket
+--@author Periapsis
+
+--@client
+
+if player() ~= owner() then return end
+
+if not socket then
+    error( "The socket library is not installed" )
+end
+
+local WebSocket = {
+    CONNECTING  = "CONNECTING",
+    OPEN        = "OPEN",
+    CLOSING     = "CLOSING",
+    CLOSED      = "CLOSED",
+
+    getRandomSocketKey = function( self )
+        local key = ""
+        
+        for i = 1, 16 do
+            key = key .. string.char( math.random( 0x00, 0xFE ) )
+        end
+        
+        return http.base64Encode( key )
+    end,
+    
+    formatHeaders = function( self, headers )
+        local headersFormat = "\r\n"
+        
+        for header, value in pairs( headers ) do
+            headersFormat = headersFormat .. header .. ": " .. value .. "\r\n"
+        end
+        
+        return headersFormat .. "\r\n"
+    end,
+    
+    getRandomBitMask = function( self )
+        local bitMask = ""
+        
+        for i = 1, 4 do
+            bitMask = bitMask .. string.char( math.random( 0, 255 ) )
+        end
+        
+        return bitMask
+    end,
+    
+    getBitMaskedMessage = function( self, message, bitMask )
+        local result = ""
+    
+        for i = 1, string.len( message ) do
+            local byte = string.byte( message[i] )
+            local mask = string.byte( bitMask[( ( i - 1 ) % 4 ) + 1] )
+            
+            result = result .. string.char( bit.bxor( byte, mask ) )
+        end
+        
+        return result
+    end
+}
+
+return setmetatable( WebSocket, {
+    __call = function( self, address, port, nohandshake )
+        --------------------------------------------------
+        -- Parameters
+    
+        local instance = {
+            address = address,
+            port = port,
+        
+            status = self.CONNECTING,
+        
+            callbacks = {
+                ["open"] = {},
+                ["message"] = {},
+                ["error"] = {},
+            },
+            
+            handshakeComplete = false,
+            
+            parent = self
+        }
+        
+        instance.name = tostring( instance )
+        
+        --------------------------------------------------
+        -- Methods
+        
+        function instance:runCallback( event, ... )
+            for _, callback in ipairs( self.callbacks[event] ) do
+                callback( ... )
+            end
+        end
+        
+        function instance:on( event, callback )
+            if not self.callbacks[event] then
+                error( "WebSocket: No such event \"" .. event .. "\"" )
+            end
+            
+            table.insert( self.callbacks[event], callback )
+        end
+        
+        function instance:send( message )
+            if self.status ~= "OPEN" then
+                error( "WebSocket: Cannot send while " .. self.status )
+            end
+            
+            local payloadLength = string.char( bit.bor( 0x80, string.len( message ) ) )
+            local bitMask = self.parent:getRandomBitMask()
+            local message = self.parent:getBitMaskedMessage( message, bitMask )
+            
+            self.connection:send( string.char( 0x81 ) .. payloadLength .. bitMask .. message )
+        end
+        
+        --------------------------------------------------
+        -- Start connection
+        
+        local function handleConnection()
+            if not instance.connection then
+                instance.connection = socket.tcp()
+                
+                local headers = {
+                    ["Host"]                    = address .. ":" .. tostring( port ),
+                    ["Upgrade"]                 = "websocket",
+                    ["Connection"]              = "Upgrade",
+                    ["Sec-WebSocket-Key"]       = self:getRandomSocketKey(),
+                    ["Sec-WebSocket-Version"]   = "13"
+                }
+                
+                instance.connection:settimeout( 0 )
+                instance.connection:connect( address, port )
+                
+                if not nohandshake then
+                    instance.connection:send( "GET / HTTP/1.1" .. self:formatHeaders( headers ) )
+                    instance.timeout = timer.realtime() + 5
+                else
+                    instance.handshakeComplete = true
+                    instance.status = self.OPEN
+                end
+            end
+
+            if instance.status ~= self.OPEN and timer.realtime() > instance.timeout then
+                instance.status = self.CLOSED
+            
+                instance:runCallback( "error", "Connection timed out" )
+            
+                hook.remove( "Tick", "WebSocket_HandleConnection_" .. instance.name )
+            end
+
+            local str, status, partial = instance.connection:receive()
+
+            if instance.status == self.OPEN or nohandshake then
+                print( str, status, partial )
+                if partial and partial ~= "" then
+                    instance:runCallback( "message", partial )
+                end
+            
+                if not instance.handshakeComplete and str == "" then
+                    instance.handshakeComplete = true
+                end
+            elseif str == "HTTP/1.1 101 Switching Protocols" then
+                instance.status = self.OPEN
+                
+                instance:runCallback( "open" )
+            end
+        end
+        
+        hook.add( "Tick", "WebSocket_HandleConnection_" .. instance.name, handleConnection )
+        
+        return instance
+    end
+} )

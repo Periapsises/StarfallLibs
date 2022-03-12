@@ -1,0 +1,128 @@
+--@name Rope library
+--@author Periapsis
+
+--@shared
+
+local drawLine = render.drawLine
+local copy = table.copy
+local sqrt = math.sqrt
+
+function CreateRope( startPos, endPos, segCount, segLength, segMass, gravity )
+    local xRope, yRope = {}, {}
+    local xRopeResult, yRopeResult = {}, {}
+    local masses = {}
+    
+    local xVel, yVel = {}, {}
+    
+    gravity = gravity or Vector( 0, 0 )
+    local damping = 0.99
+    
+    local xGrav, yGrav = gravity.x, gravity.y
+    xGrav, yGrav = xGrav / 100, yGrav / 100
+    
+    local xDir = ( endPos.x - startPos.x ) / segCount
+    local yDir = ( endPos.y - startPos.y ) / segCount
+    
+    for i = 1, segCount + 1 do
+        xRope[i] = startPos.x + xDir * ( i - 1 )
+        yRope[i] = startPos.y + yDir * ( i - 1 )
+        
+        xRopeResult[i] = xRope[i]
+        yRopeResult[i] = yRope[i]
+        
+        xVel[i], yVel[i] = 0, 0
+        masses[i] = segMass or 1
+    end
+    
+    local rope = {}
+    
+    function rope.setStartPos( pos )
+        xRopeResult[1] = pos.x
+        yRopeResult[1] = pos.y
+    end
+    
+    function rope.setEndPos( pos )
+        xRopeResult[segCount + 1] = pos.x
+        yRopeResult[segCount + 1] = pos.y
+    end
+    
+    function rope.getStartPos()
+        return xRope[1], yRope[1]
+    end
+    
+    function rope.getEndPos()
+        return xRope[segCount + 1], yRope[segCount + 1]
+    end
+    
+    function rope.setDamping( value )
+        damping = value
+    end
+    
+    function rope.simulate( steps )
+        steps = steps or 1
+    
+        for step = 1, steps do
+            for i = 1, segCount do
+                local xVec1, yVec1 = 0, 0
+                local xVec2, yVec2 = 0, 0
+                
+                local count = 0
+                
+                for j = 1, 2 do
+                    local a, b = i - j, i + j
+                
+                    if not xRope[a] or not xRope[b] then continue end
+                
+                    xVec1 = xVec1 + xRope[a] - xRope[i]
+                    yVec1 = yVec1 + yRope[a] - yRope[i]
+                    
+                    xVec2 = xVec2 + xRope[b] - xRope[i]
+                    yVec2 = yVec2 + yRope[b] - yRope[i]
+                    
+                    count = count + 1
+                end
+                
+                if count == 0 then continue end
+                
+                xVec1, yVec1 = xVec1 / count, yVec1 / count
+                xVec2, yVec2 = xVec2 / count, yVec2 / count
+                
+                local mVecX, mVecY = ( xVec1 + xVec2 ) / 2, ( yVec1 + yVec2 ) / 2
+                
+                local mag1 = sqrt( xVec1 * xVec1 + yVec1 * yVec1 )
+                local ext1 = ( mag1 - segLength ) * 4
+                
+                local mag2 = sqrt( xVec2 * xVec2 + yVec2 * yVec2 )
+                local ext2 = ( mag2 - segLength ) * 4
+                
+                local xv = ( xVec1 / mag1 * ext1 ) + ( xVec2 / mag2 * ext2 )
+                local yv = ( yVec1 / mag1 * ext1 ) + ( yVec2 / mag2 * ext2 )
+                
+                local xAcc, yAcc = ( xv * 0.01 ) + xGrav, ( yv * 0.01 ) + yGrav
+                xAcc = xAcc + mVecX / 10
+                yAcc = yAcc + mVecY / 10
+                
+                xVel[i] = xVel[i] * damping + xAcc / masses[i]
+                yVel[i] = yVel[i] * damping + yAcc / masses[i]
+                
+                xRopeResult[i] = xRope[i] + xVel[i]
+                yRopeResult[i] = yRope[i] + yVel[i]
+            end
+            
+            xRope = copy( xRopeResult )
+            yRope = copy( yRopeResult )
+        end
+    end
+    
+    function rope.getSegments()
+        return xRope, yRope
+    end
+    
+    function rope.draw()
+        for i = 1, segCount do
+            drawLine( xRope[i], yRope[i], xRope[i + 1], yRope[i + 1] )
+        end
+    end
+    
+    return rope
+end
