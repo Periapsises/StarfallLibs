@@ -1,62 +1,153 @@
- --------------------------------------------------
--- Task Type
+--@name Async Lib
+--@author Periapsis
 
-local Task = {}
-Task.__index = Task
-
-function Task:__index( key )
-    if self == Task then return end
+local callable = {}
+function callable:__call( ... )
+    return self:call( ... )
 end
 
-function Task:__call( async )
-    local task = {}
-    
-    task.async = async
-    task.thread = coroutine.create( async.wrapper )
-    task.name = "Thread_" .. tostring( task.thread ):sub( 10 )
-    
-    local function thread()
-        if coroutine.status( task.thread ) == "dead" then return end
-        
-        coroutine.resume( task.thread )
-    end
-    
-    hook.add( "Tick", task.name, thread )
-    
-    return setmetatable( task, self )
+local max, qAvg, qUse, qMax, yield = math.max, quotaAverage, quotaUsed, quotaMax(), coroutine.yield
+
+--- quota( percent )
+-- Yields from the current coroutine if the currently used quota exceeds a specific percentage of the max quota
+-- @param percent: A value between 0 and 1, 1 being 100% of the max quota
+function quota( percent )
+    if max( qUse(), qAvg() ) >= qMax * percent then return yield() end
 end
 
-setmetatable( Task, Task )
-
-function await( async )
-    return Task( async )
-end
-
---------------------------------------------------
--- Async type
-
-local Async = {}
-Async.__index = Async
-
-function Async:__index( key )
-    if self == Async then return end
-end
-
-function Async:__call( func )
-    local async = {}
-    
-    local function wrapper( ... )
-        return wrapper( ... )
-    end
-    
-    async.original = func
-    async.wrapper = wrapper
-    
-    return setmetatable( async, self )
-end
-
-setmetatable( Async, Async )
-
+--- async( function )
+-- Converts a function to be an async thread
+-- @param function: The function to convert
 function async( func )
-    return Async( func )
+    local thread = {}
+    
+    thread.func = func
+    
+    function thread:call( ... )
+        local runtime = {}
+        
+        local routine = coroutine.create( self.func )
+        local args = {...}
+        
+        runtime.thread = self
+        runtime.exec = routine
+        runtime.name = "Thread_" .. tostring( routine )
+        
+        local values
+        
+        hook.add( "Tick", runtime.name, function()
+            if coroutine.status( routine ) ~= "dead" then
+                values = {coroutine.resume( routine, unpack( args ) )}
+                return
+            end
+            
+            runtime.values = values
+            
+            hook.remove( "Tick", runtime.name )
+        end )
+        
+        return runtime
+    end
+    
+    return setmetatable( thread, callable )
+end
+
+--- await( thread )
+-- Awaits for a thread to finish
+-- @param function: The thread to wait for
+function await( thread )
+    while not thread.values do yield() end
+    
+    return unpack( thread.values )
+end
+
+--- delay( time )
+-- Delays an async function for 'time' ms
+-- @param time: The time in milliseconds to delay for
+function delay( time )
+    coroutine.wait( time * 0.001 )
+end
+
+------------------------------------------------------------
+-- Utilities
+
+function http._getAsync( url, headers )
+    local waiting = true
+    local response
+
+    local function onSuccess( body, length, headers, code )
+        response = {
+            content = body,
+            length = length,
+            headers = headers,
+            code = code
+        }
+        
+        waiting = false
+    end
+    
+    local function onFail( reason )
+        response = {
+            content = reason,
+            length = string.len( reason ),
+            headers = {},
+            code = 400
+        }
+        
+        waiting = false
+    end
+    
+    http.get( url, onSuccess, onFail, headers )
+    while waiting do coroutine.yield() end
+    
+    return response
+end
+
+--- http.getAsync( url, [headers] )
+-- Http GET request that runs asynchroneously
+-- @param url: The url to send the request to
+-- @param optional headers: Optional list of headers to send
+function http.getAsync( url, headers )
+    return async( http._getAsync )( url, headers )
+end
+
+function http._postAsync( url, payload, headers )
+    local waiting = true
+    local response
+
+    local function onSuccess( body, length, headers, code )
+        response = {
+            content = body,
+            length = length,
+            headers = headers,
+            code = code
+        }
+        
+        waiting = false
+    end
+    
+    local function onFail( reason )
+        response = {
+            content = reason,
+            length = string.len( reason ),
+            headers = {},
+            code = 400
+        }
+        
+        waiting = false
+    end
+    
+    http.post( url, payload, onSuccess, onFail, headers )
+    while waiting do coroutine.yield() end
+    
+    return response
+end
+
+--- http.postAsync( url, payload, [headers] )
+-- Http POST request that runs asynchroneously
+-- @param url: The url to send the request to
+-- @param payload: The payload to send
+-- @param optional headers: Optional list of headers to send
+function http.postAsync( url, payload, headers )
+    return async( http._postAsync )( url, payload, headers )
 end
