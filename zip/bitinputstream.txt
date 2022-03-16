@@ -1,0 +1,52 @@
+local BitInputStream = {}
+
+BitInputStream.__index = BitInputStream
+
+function BitInputStream:new( input )
+    local bitInputStream = {}
+    
+    bitInputStream.input = input
+    bitInputStream.byte = 0
+    bitInputStream.bitsRemaining = 0
+    bitInputStream.size = input:size()
+    bitInputStream.bitsRead = 0
+    
+    return setmetatable( bitInputStream, self )
+end
+
+function BitInputStream:getBitPosition()
+    assert( 0 <= self.bitsRemaining and self.bitsRemaining <= 7 )
+    
+    return -self.bitsRemaining % 8
+end
+
+function BitInputStream:readBit()
+    if self.bitsRemaining == 0 then
+        if self.input:tell() > self.size then
+            error( "Reached end of stream" )
+        end
+    
+        self.byte = self.input:readInt8()
+        self.bitsRemaining = 8
+    end
+    
+    assert( self.byte )
+    
+    self.bitsRead = self.bitsRead + 1
+    
+    self.bitsRemaining = self.bitsRemaining - 1
+    return bit.band( bit.rshift( self.byte, ( 7 - self.bitsRemaining ) ), 1 )
+end
+
+function BitInputStream:readBits( count )
+    local result = 0
+    
+    for i = 0, count - 1 do
+        local _bit = self:readBit( true )
+        result = bit.bor( result, bit.lshift( _bit, i ) )
+    end
+    
+    return result
+end
+
+return BitInputStream

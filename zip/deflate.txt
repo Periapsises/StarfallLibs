@@ -1,0 +1,234 @@
+--@include bitinputstream.txt
+--@include bytehistory.txt
+--@include canonicalcode.txt
+
+local BitInputStream = require( "bitinputstream.txt" )
+local ByteHistory = require( "bytehistory.txt" )
+local CanonicalCode = require( "canonicalcode.txt" )
+
+local Deflate = {}
+
+Deflate.__index = Deflate
+
+function Deflate:decompress( bitin )
+    local output = bit.stringstream( "", 1, "little" )
+    self:decompressToStream( bitin, output )
+    return output:getString()
+end
+
+function Deflate:decompressToStream( bitin, output )
+    self:new( bitin, output )
+end
+
+function Deflate:new( bitin, output )
+    local decompressor = {}
+    
+    decompressor.input = BitInputStream:new( bitin )
+    decompressor.output = output
+    decompressor.dict = ByteHistory:new( 32 * 1024 )
+    
+    setmetatable( decompressor, self )
+    
+    while true do
+        local isFinal = decompressor.input:readBit() ~= 0
+        local type = decompressor.input:readBits( 2 )
+        
+        if type == 0 then
+            decompressor:decompressUncompressedBlock()
+        elseif type == 1 then
+            decompressor:decompressHuffmanBlock( CanonicalCode._LITERAL_LENGTH_CODE, CanonicalCode._DISTANCE_CODE )
+        elseif type == 2 then
+            local litLenCode, distCode = decompressor:decodeHuffmanCodes()
+        
+            decompressor:decompressHuffmanBlock( litLenCode, distCode )
+        elseif type == 3 then
+            error( "Reserved block type" )
+        else
+            error( "Invalid block type" )
+        end
+        
+        if isFinal then break end
+    end
+end
+
+function Deflate:decompressUncompressedBlock()
+    while self.input:getBitPosition() ~= 0 do
+        self.input:readBit()
+    end
+    
+    local len = self.input:readBits( 16 )
+    local nlen = self.input:readBits( 16 )
+    
+    if bit.bxor( len, 0xffff ) != nlen then
+        error( "Invalid length in uncompressed block" )
+    end
+    
+    for _ = 1, len do
+        local byte = self.input:readBits( 8 )
+        
+        self.output:writeInt8( byte )
+        self.dict:append( byte )
+    end
+end
+
+function Deflate:decompressHuffmanBlock( litLenCode, distCode )
+    while true do
+        local sym = litLenCode:decodeNextSymbol( self.input )
+        
+        if sym == 256 then
+            break
+        elseif sym < 256 then
+            self.output:writeInt8( sym )
+            self.dict:append( sym )
+        else
+            local run = self:decodeRunLength( sym )
+            
+            assert( 3 <= run and run <= 258, "Invalid run length" )
+            
+            if not distCode then
+                error( "Length symbol encountered with empty distance code" )
+            end
+            
+            local distSym = distCode:decodeNextSymbol( self.input )
+            local dist = self:decodeDistance( distSym )
+            
+            assert( 1 <= dist and dist <= 32768, "Invalid distance" )
+            
+            self.dict:copy( dist, run, self.output )
+        end
+    end
+end
+
+function Deflate:decodeRunLength( sym )
+    assert( 257 <= sym and sym <= 287, "Invalid run symbol: " .. sym )
+    
+    if sym <= 264 then
+        return sym - 254
+    elseif sym <= 284 then
+        local numExtraBits = math.floor( ( sym - 261 ) / 4 )
+        
+        return bit.lshift((( sym - 265 ) % 4 + 4 ), numExtraBits ) + 3 + self.input:readBits( numExtraBits )
+    elseif sym == 285 then
+        return 258
+    else
+        error( "Reserved length symbol: " .. sym )
+    end
+end
+
+function Deflate:decodeDistance( sym )
+    assert( 0 <= sym and sym <= 31, "Invalid distance symbol: " .. sym )
+    
+    if sym <= 3 then
+        return sym + 1
+    elseif sym <= 29 then
+        local numExtraBits = math.floor( sym / 2 ) - 1
+        
+        return bit.lshift(( sym % 2 + 2 ), numExtraBits ) + 1 + self.input:readBits( numExtraBits )
+    else
+        error( "Reserved distance symbol: " .. sym )
+    end
+end
+
+function Deflate:decodeHuffmanCodes()
+    local numLitLenCodes = self.input:readBits( 5 ) + 257
+    local numDistCodes = self.input:readBits( 5 ) + 1
+    
+    local numCodeLenCodes = self.input:readBits( 4 ) + 4
+    
+    local codeLenCodeLen = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+    codeLenCodeLen[17] = self.input:readBits( 3 )
+    codeLenCodeLen[18] = self.input:readBits( 3 )
+    codeLenCodeLen[19] = self.input:readBits( 3 )
+    codeLenCodeLen[1] = self.input:readBits( 3 )
+    
+    for i = 0, numCodeLenCodes - 5 do
+        local j = ( i % 2 == 0 ) and ( 8 + math.floor( i / 2 ) ) or ( 7 - math.floor( i / 2 ) )
+        
+        codeLenCodeLen[j + 1] = self.input:readBits( 3 )
+    end
+    
+    local codeLenCode = CanonicalCode:new( codeLenCodeLen )
+    
+    local codeLens = {}
+    
+    while #codeLens < numLitLenCodes + numDistCodes do
+        local sym = codeLenCode:decodeNextSymbol( self.input )
+        
+        if 0 <= sym and sym <= 15 then
+            table.insert( codeLens, sym )
+        elseif sym == 16 then
+            if #codeLens == 0 then
+                error( "No code length value to copy" )
+            end
+            
+            local runLen = self.input:readBits( 2 ) + 3
+            local byte = codeLens[#codeLens]
+            
+            for i = 1, runLen do
+                table.insert( codeLens, byte )
+            end
+        elseif sym == 17 then
+            local runLen = self.input:readBits( 3 ) + 3
+            
+            for i = 1, runLen do
+                table.insert( codeLens, 0 )
+            end
+        elseif sym == 18 then
+            local runLen = self.input:readBits( 7 ) + 11
+            
+            for i = 1, runLen do
+                table.insert( codeLens, 0 )
+            end
+        else
+            error( "Symbol out of range: " .. sym )
+        end
+    end
+    
+    if #codeLens > numLitLenCodes + numDistCodes then
+        error( "Run exceeds number of codes" )
+    end
+    
+    local litLenCodes = {}
+    local distCodeLen = {}
+    
+    for i = 1, numLitLenCodes do
+        table.insert( litLenCodes, codeLens[i] )
+    end
+    
+    for i = numLitLenCodes + 1, #codeLens do
+        table.insert( distCodeLen, codeLens[i] )
+    end
+    
+    local litLenCode = CanonicalCode:new( litLenCodes )
+    
+    local distCode
+    
+    if #distCodeLen == 1 and distCodeLen[1] == 0 then
+        distCode = nil
+    else
+        local oneCount = 0
+        local otherPositiveCount = 0
+        
+        for _, x in ipairs( distCodeLen ) do
+            if x == 1 then
+                oneCount = oneCount + 1
+            elseif x > 1 then
+                otherPositiveCount = otherPositiveCount + 1
+            end
+        end
+        
+        if oneCount == 1 and otherPositiveCount == 0 then
+            for i = 1, 32 - #distCodeLen do
+                table.insert( distCodeLen, 0 )
+            end
+            
+            distCodeLen[32] = 1
+        end
+        
+        distCode = CanonicalCode:new( distCodeLen )
+    end
+    
+    return litLenCode, distCode
+end
+
+return Deflate

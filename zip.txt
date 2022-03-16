@@ -1,0 +1,102 @@
+--@name Zip Lib
+--@author Periapsis
+
+--@include zip/deflate.txt
+
+local Zip = {}
+
+Zip.methods = {}
+Zip.deflate = require( "zip/deflate.txt" )
+
+Zip.methods[0] = function( data )
+    return data
+end
+
+Zip.methods[8] = function( data )
+    local bitstream = bit.stringstream( data, 1, "little" )
+
+    return Zip.deflate:decompress( bitstream )
+end
+
+local function unzip( bitstream )
+    local files = {}
+
+    while true do
+        local sig = bitstream:readInt32()
+
+        if sig == 0x02014b50 then break end
+
+        assert( sig == 0x04034b50, "Bad zip signature (file is not a zip?)" )
+
+        local version = bitstream:readInt16()
+        local bitflag = bitstream:readInt16()
+        local compressionMethod = bitstream:readInt16()
+        local modificationTime = bitstream:readInt16()
+        local modificationData = bitstream:readInt16()
+        local crc = bitstream:readInt32()
+        local compressedSize = bitstream:readInt32()
+        local uncompressedSize = bitstream:readInt32()
+        local fileNameLength = bitstream:readInt16()
+        local extraFieldLength = bitstream:readInt16()
+
+        local fileName = bitstream:read( fileNameLength )
+        local extraField = bitstream:read( extraFieldLength )
+
+        assert( Zip.methods[compressionMethod], string.format( "Unsupported compression method (%d) for file %s", compressionMethod,fileName ) )
+
+        table.insert( files, {
+            name = fileName,
+            contents = Zip.methods[compressionMethod]( bitstream:read( compressedSize ) )
+        } )
+
+        if threaded and math.max( quotaUsed(), quotaAverage() ) > quotaUsed() * 0.75 then
+            coroutine.yield()
+        end
+    end
+
+    local fileId = 1
+
+    while true do
+        for i = 1, 6 do bitstream:readInt16() end
+        for i = 1, 3 do bitstream:readInt32() end
+
+        local fileNameLength = bitstream:readInt16()
+        local extraFieldLength = bitstream:readInt16()
+        local fileCommentLength = bitstream:readInt16()
+        local diskNumber = bitstream:readInt16()
+        local internalAttributes = bitstream:readInt16()
+        local externalAttributes = bitstream:readInt32()
+        local relativeOffset = bitstream:readInt32()
+
+        local fileName = bitstream:read( fileNameLength )
+        local extraField = bitstream:read( extraFieldLength )
+        local fileComment = bitstream:read( fileCommentLength )
+
+        local file = files[fileId]
+        fileId = fileId + 1
+
+        file.internalAttributes = internalAttributes
+        file.externalAttributes = externalAttributes
+        file.comment = fileComment
+
+        local sig = bitstream:readInt32()
+
+        if sig ~= 0x02014b50 then break end
+    end
+
+    return files
+end
+
+function Zip.unzipString( str, threaded )
+    local zip = bit.stringstream( str, 1, "little" )
+
+    return unzip( zip, zip.readInt32, zip.readInt16, threaded )
+end
+
+function Zip.unzipFile( path, threaded )
+    local zip = file.read( path )
+
+    return Zip.unzipString( zip, threaded )
+end
+
+return Zip

@@ -1,0 +1,38 @@
+local ByteHistory = {}
+
+ByteHistory.__index = ByteHistory
+
+function ByteHistory:new( size )
+    local byteHistory = {}
+    
+    byteHistory.data = {}
+    byteHistory.index = 0
+    byteHistory.size = size
+    
+    return setmetatable( byteHistory, self )
+end
+
+function ByteHistory:append( byte )
+    assert( 0 <= self.index and self.index < self.size )
+    
+    self.data[self.index] = byte
+    self.index = ( self.index + 1 ) % self.size
+end
+
+function ByteHistory:copy( dist, count, out )
+    if count < 0 or not ( 1 <= dist and dist <= self.size ) then
+        error( "Invalid arguments" )
+    end
+    
+    local readIndex = ( self.index - dist ) % self.size
+    
+    for _ = 0, count - 1 do
+        local byte = self.data[readIndex]
+        readIndex = ( readIndex + 1 ) % self.size
+        
+        out:writeInt8( byte )
+        self:append( byte )
+    end
+end
+
+return ByteHistory

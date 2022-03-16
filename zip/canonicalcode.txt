@@ -1,0 +1,55 @@
+local lshift, rshift, bor = bit.lshift, bit.rshift, bit.bor
+
+local CanonicalCode = {}
+
+CanonicalCode.__index = CanonicalCode
+
+local e = 1
+
+function CanonicalCode:new( codes )
+    local canonicalCode = {}
+    
+    canonicalCode.codeBitsToSymbol = {}
+    
+    local nextCode, max = 0, math.max( unpack( codes ) )
+    
+    for codeLength = 1, max do
+        nextCode = lshift( nextCode, 1 )
+        local startBit = lshift( 1, codeLength )
+        
+        for symbol, code in ipairs( codes ) do
+            if code ~= codeLength then continue end
+            
+            if nextCode >= startBit then
+                error( "This cannonical code produces an over-full Huffman code tree" )
+            end
+            
+            canonicalCode.codeBitsToSymbol[bor( startBit, nextCode )] = ( symbol - 1 )
+            nextCode = nextCode + 1
+        end
+    end
+    
+    if nextCode ~= lshift( 1, max ) then
+        error( "This canonical code produces an under-full Huffman code tree" )
+    end
+    
+    return setmetatable( canonicalCode, self )
+end
+
+function CanonicalCode:decodeNextSymbol( input )
+    local codeBits = 1
+    
+    while true do
+        codeBits = bor( lshift( codeBits, 1 ), input:readBit() )
+        local result = self.codeBitsToSymbol[codeBits]
+        
+        if result then
+            return result
+        end
+    end
+end
+
+CanonicalCode._LITERAL_LENGTH_CODE = CanonicalCode:new( {8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8} )
+CanonicalCode._DISTANCE_CODE = CanonicalCode:new( {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5} )
+
+return CanonicalCode
