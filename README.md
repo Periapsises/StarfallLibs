@@ -5,8 +5,8 @@ They don't do anything on their own but rather provide functions and variables t
 
 ## Index
 
-- [Async](async)
-- [Zip](zip)
+- [Async](#async)
+- [Zip](#zip)
 
 ## Async
 
