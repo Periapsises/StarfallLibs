@@ -40,6 +40,12 @@ Yields from the current thread if the cpu usage is above the specified percentag
 - _number_: **percent** - A number between `0` and `1` representing the percentage
 
 ```cs
+nil: delay( number: time )
+```
+Delays the execution of the current coroutine by `time` milliseconds
+- _number_: **time** - The time to delay for
+
+```cs
 thread: http.getAsync( string: url, [table: headers = {}] )
 ```
 Creates a thread that performs an Http GET request to a url and returns the response
@@ -55,6 +61,47 @@ Creates a thread that performs an Http POST request to a url and returns the res
 - Optional _string_: **payload** - The payload to send along with the request
 - Optional _table_: **headers** - A list of headers to send with the request
 - _thread_: **return** - A thread you can await for
+
+---
+
+### Example
+
+Code:
+```lua
+require( "async.txt" )
+
+local function main()
+    async( function()
+        delay( 200 )
+        print( "A" )
+    end )()
+    
+    local longestThread = async( function()
+        delay( 300 )
+        print( "B" )
+    end )()
+    
+    async( function()
+        delay( 100 )
+        print( "C" )
+    end )()
+    
+    await( longestThread )
+    
+    print( "Done" )
+end
+
+async( main )()
+```
+Result:
+```
+C
+A
+B
+Done
+```
+
+---
 
 ## Zip
 
