@@ -8,6 +8,9 @@ end
 
 local max, qAvg, qUse, qMax, yield = math.max, quotaAverage, quotaUsed, quotaMax(), coroutine.yield
 
+local threadCount = 0
+local avgThreadMaxCpu = 0
+
 --- quota( percent )
 -- Yields from the current coroutine if the currently used quota exceeds a specific percentage of the max quota
 -- @param percent: A value between 0 and 1, 1 being 100% of the max quota
@@ -66,6 +69,12 @@ end
 -- @param time: The time in milliseconds to delay for
 function delay( time )
     coroutine.wait( time * 0.001 )
+end
+
+--- yield
+-- Same as coroutine.yield but shorter to write
+function yield()
+    coroutine.yield()
 end
 
 ------------------------------------------------------------

@@ -1,0 +1,62 @@
+--@name Chat Command Library
+--@author Periapsis
+
+--@shared
+
+--[[
+    Chat Command Library by Periapsis
+    For StarfallEx
+
+    When included, this library returns a table on which you can add functions.
+    The name of those functions determines the name the commands.
+
+    local Commands = require( "chatcommands.txt" )
+
+    function Commands:ping( ply, msg, isTeam, isDead, ... )
+        print( "Pong!" )
+    end
+
+    This command would let you say '!ping' in chat, and then 'Pong!' would be printed.
+
+    You can change prefixes with the 'allowedPrefixes' key. Multiple prefixes work.
+    You can make the commands be case sensitive or not with 'caseSensitive'.
+]]
+
+local commands = {}
+local unsensitiveCommands = {}
+
+local chatCommands = {
+    allowedPrefixes = "!",
+    caseSensitive = false
+}
+
+local function handleChatCommands( ply, msg, isTeam, isDead )
+    if not string.match( msg[1], "[" .. chatCommands.allowedPrefixes .. "]" ) then return end
+
+    isDead = isDead or not ply:isAlive()
+
+    local args = string.split( msg, " " )
+    local command = table.remove( args, 1 ):sub( 2 )
+
+    if chatCommands.caseSensitive then
+        if not commands[command] then return end
+
+        return commands[command]( ply, msg, isTeam, isDead, unpack( args ) )
+    end
+
+    command = string.lower( command )
+    if not unsensitiveCommands[command] then return end
+
+    return unsensitiveCommands[command]( ply, msg, isTeam, isDead, unpack( args ) )
+end
+
+local hookName = SERVER and "PlayerSay" or "PlayerChat"
+
+hook.add( hookName, "HandleChatCommands", handleChatCommands )
+
+return setmetatable( chatCommands, {
+    __newindex = function( tbl, key, value )
+        commands[key] = value
+        unsensitiveCommands[string.lower( key )] = value
+    end
+} )
