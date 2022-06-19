@@ -1,7 +1,18 @@
 # StarfallLibs
 Libraries for use in [**Starfall Ex**](https://github.com/thegrb93/StarfallEx)
 
-They don't do anything on their own but rather provide functions and variables to use so you don't have to rewrite it everytime.
+They don't really do anything on their own but rather provide functions and variables to use so you don't have to rewrite it everytime.
+
+## 📌 Importing libraries
+
+Starfall has a special feature that lets you include files from urls!
+Here is a list of urls to simplify your life 🙂
+
+|    Library    | Require                                                   | Include                                                                                                           |
+|:-------------:|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+|     Async     | ```lua require( "async" ) ```                             | ```--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/async.txt as async```               |
+| Chat Commands | ```lua local chatCommands = require( "chatcommands" ) ``` | ```--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/chatcommands.txt as chatcommands``` |
+|      Zip      | ```lua local zip = require( "zip" ) ```                   | ```--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/zip.txt as zip```                   |
 
 ## Index
 
