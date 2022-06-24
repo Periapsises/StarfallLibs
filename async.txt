@@ -107,7 +107,7 @@ function http._getAsync( url, headers )
     end
     
     http.get( url, onSuccess, onFail, headers )
-    while waiting do coroutine.yield() end
+    while waiting do yield() end
     
     return response
 end
@@ -147,7 +147,7 @@ function http._postAsync( url, payload, headers )
     end
     
     http.post( url, payload, onSuccess, onFail, headers )
-    while waiting do coroutine.yield() end
+    while waiting do yield() end
     
     return response
 end
@@ -159,4 +159,27 @@ end
 -- @param optional headers: Optional list of headers to send
 function http.postAsync( url, payload, headers )
     return async( http._postAsync )( url, payload, headers )
+end
+
+function hook._async( hookName )
+    local waiting = true
+    local values
+    
+    local function callback( ... )
+        waiting = false
+        values = {...}
+    end
+    
+    hook.add( hookName, "AsyncHook_" .. tostring( callback ), callback )
+    
+    while waiting do yield() end
+    
+    return unpack( values )
+end
+
+--- hook.async( hookName )
+-- Returns the values passed to the hook
+-- @param hookName: The hook to get values from
+function hook.async( hookName )
+    return async( hook._async )( hookName )
 end
