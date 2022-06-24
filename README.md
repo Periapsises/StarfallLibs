@@ -73,6 +73,14 @@ Creates a thread that performs an Http POST request to a url and returns the res
 - Optional _table_: **headers** - A list of headers to send with the request
 - _thread_: **return** - A thread you can await for
 
+```cs
+thread: hook.async( string: hook )
+```
+
+Creates a thread that wait for a hook to be called and returns the passed values
+- _string_: **hook** - The hook to add
+- _thread_: **return** - A thread you can await for
+
 ---
 
 ### Example
@@ -110,6 +118,25 @@ C
 A
 B
 Done
+```
+
+Code:
+```lua
+require( "async.txt" )
+
+local function main()
+    print( await( hook.async( "PlayerSay" ) ) )
+end
+
+async( main )()
+```
+Result:
+```
+Player[1]Periapsis  Hello   false
+Periapsis: Hello
+
+Player[1]Periapsis Hi from team chat    true
+(TEAM) Periapsis: Hi from team chat
 ```
 
 ---
