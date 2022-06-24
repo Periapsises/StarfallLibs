@@ -31,10 +31,11 @@ It also creates extra functions to facilitate the use with threads such as async
 ---
 
 ```cs
-thread: async( function: func )
+thread: async( function: func, string: hook )
 ```
 Converts a function into a thread that runs asynchroneously.
 - _function_: **func** - The function to convert into a thread
+- Optional _string_: **hook** - The hook to use to continue execution of the thread
 - _thread_: **return** - Returns the newly create thread
 
 ```cs
