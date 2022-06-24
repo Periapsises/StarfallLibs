@@ -21,7 +21,8 @@ end
 --- async( function )
 -- Converts a function to be an async thread
 -- @param function: The function to convert
-function async( func )
+-- @param hookName: The hook to use to continue execution (Defaults to 'tick')
+function async( func, hookName )
     local thread = {}
     
     thread.func = func
@@ -37,8 +38,9 @@ function async( func )
         runtime.name = "Thread_" .. tostring( routine )
         
         local values
+        hookName = hookName or "Tick"
         
-        hook.add( "Tick", runtime.name, function()
+        hook.add( hookName, runtime.name, function()
             if coroutine.status( routine ) ~= "dead" then
                 values = {coroutine.resume( routine, unpack( args ) )}
                 return
@@ -46,7 +48,7 @@ function async( func )
             
             runtime.values = values
             
-            hook.remove( "Tick", runtime.name )
+            hook.remove( hookName, runtime.name )
         end )
         
         return runtime
