@@ -8,11 +8,26 @@ They don't really do anything on their own but rather provide functions and vari
 Starfall has a special feature that lets you include files from urls!
 Here is a list of urls to simplify your life 🙂
 
-|    Library    | Require                                                   | Include                                                                                                           |
-|:-------------:|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
-|     Async     | ```lua require( "async" ) ```                             | ```--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/async.txt as async```               |
-| Chat Commands | ```lua local chatCommands = require( "chatcommands" ) ``` | ```--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/chatcommands.txt as chatcommands``` |
-|      Zip      | ```lua local zip = require( "zip" ) ```                   | ```--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/zip.txt as zip```                   |
+### Async
+```lua
+--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/async.txt as async
+require( "async" )
+```
+### Chat Commands
+```lua
+--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/chatcommands.txt as chatcommands
+local chatCommands = require( "chatcommands" )
+```
+### Permissions
+```lua
+--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/perms.txt as perms
+local perms = require( "perms" )
+```
+### WebSocket
+```lua
+--@include https://raw.githubusercontent.com/Periapsises/StarfallLibs/main/websocket.txt as websocket
+local websocket = require( "websocket" )
+```
 
 ## Index
 
