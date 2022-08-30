@@ -1,0 +1,43 @@
+--@name Permissions Library
+--@shared
+
+--@author Periapsis
+
+local perms = {}
+perms.required = {}
+perms.satisfied = {}
+
+function perms.isValidPermission( permission )
+    local success = pcall( hasPermission, permission )
+    return success
+end
+
+if CLIENT then
+    perms.sendOnRequire = false
+    
+    function perms.require( ... )
+        local permissions = { ... }
+        
+        for _, permission in ipairs( permissions ) do
+            if perms.satisfied[permission] == nil and perms.isValidPermission( permission ) then
+                perms.satisfied[permission] = hasPermission( permission )
+                
+                if not perms.satisfied[permission] then
+                    table.insert( perms.required, permission )
+                end
+            end
+        end
+        
+        setupPermissionRequest( perms.required, "", true )
+        
+        if perms.sendOnRequire then
+            sendPermissionRequest()
+        end
+    end
+end
+
+function perms.hasPermission( permission )
+    return perms.isValidPermission( permission ) and hasPermission( permission )
+end
+
+return perms
