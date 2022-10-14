@@ -1,0 +1,16 @@
+local floor = math.floor
+
+function rectangle( width, height )
+    local index = 0
+    local max = width * height
+    
+    return function()
+        if index >= max then return nil end
+        
+        local x = index % width
+        local y = floor( index / width )
+        index = index + 1
+        
+        return x, y
+    end
+end
