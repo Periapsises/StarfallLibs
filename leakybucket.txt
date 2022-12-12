@@ -1,0 +1,33 @@
+local LeakyBucket = {}
+LeakyBucket.__index = LeakyBucket
+
+-- Create a new instance of the LeakyBucket class
+function LeakyBucket.new( rate, capacity )
+    local self = setmetatable( {}, LeakyBucket )
+    self.rate = rate or 1.0
+    self.capacity = capacity or 1.0
+    self.content = 0.0
+    return self
+end
+
+-- Fill the bucket with the given amount of water
+function LeakyBucket:fill( amount )
+    self.content = math.min( self.content + amount, self.capacity )
+end
+
+-- Drain the bucket over the given time period
+function LeakyBucket:drain( time )
+    self.content = math.max( self.content - self.rate * time, 0.0 )
+end
+
+-- Empty the bucket completely
+function LeakyBucket:empty()
+    self.content = 0.0
+end
+
+-- Return the current content of the bucket
+function LeakyBucket:getContent()
+    return self.content
+end
+
+return LeakyBucket
